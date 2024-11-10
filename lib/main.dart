@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -9,220 +10,208 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: HomePage(),
+    return MaterialApp(
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: const MacOsInspiredDoc(),
     );
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+/// A MacOS-style dock widget that allows for item dragging and reordering.
+class MacOsInspiredDoc extends StatefulWidget {
+  const MacOsInspiredDoc({super.key});
 
   @override
-  HomePageState createState() => HomePageState();
+  State<MacOsInspiredDoc> createState() => _MacOsInspiredDocState();
 }
 
-class HomePageState extends State<HomePage> {
-  final List<IconData> icons = [
-    Icons.person,
-    Icons.message,
-    Icons.call,
-    Icons.camera,
-  
-  ];
+class _MacOsInspiredDocState extends State<MacOsInspiredDoc> {
+  late int? hoveredIndex;
+  late double baseItemHeight;
+  late double baseTranslationY;
+  late double verticalItemsPadding;
+  String? draggedItem;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const SizedBox.shrink(),
-      ),
-      body: Center(
-        child: Dock(
-          items: icons,
-          onReorder: _onReorder,
-        ),
-      ),
-    );
+  /// Determines the vertical translation (Y-axis) offset for an icon based on its index.
+  double getTranslationY(int index) {
+    return baseTranslationY;
   }
 
-  void _onReorder(int oldIndex, int newIndex) {
-    setState(() {
-      if (newIndex > oldIndex) newIndex -= 1;
-      final item = icons.removeAt(oldIndex);
-      icons.insert(newIndex, item);
-    });
+  /// Calculates the position offset for an icon when an item is dragged, to give
+  /// visual feedback for item reordering.
+  double getIconPosition(int index) {
+    if (draggedItem != null && hoveredIndex != null) {
+      if (index > hoveredIndex!) {
+        return -50.0;
+      } else if (index < hoveredIndex!) {
+        return 50.0;
+      }
+    }
+    return 0.0; // Default position when draggedItem is not hovering or outside
   }
-}
 
-class Dock extends StatefulWidget {
-  const Dock({
-    super.key,
-    required this.items,
-    required this.onReorder,
-  });
+  /// Returns the current width of the dock, shrinking it when an item is dragged
+  /// to simulate a "hovered" effect.
+  double getDockWidth() {
+    double baseDockWidth = baseItemHeight * items.length +
+        verticalItemsPadding * (items.length + 1);
 
-  final List<IconData> items;
-  final Function(int, int) onReorder;
+    if (draggedItem != null) {
+      baseDockWidth *= 0.8;
+    }
 
-  @override
-  DockState createState() => DockState();
-}
-
-
-
-
-
-
-
-class DockState extends State<Dock> {
-  late List<IconData> _items;
-  late List<Offset> _itemPositions;
-  Offset? _draggingPosition;
-  int? _draggingIndex;
-  final List<Offset> _dockPositions = [
-    const Offset(0, 100), // Position for first "seat"
-    const Offset(75, 100), // Position for second "seat"
-    const Offset(150, 100), // Position for third "seat"
-    const Offset(225, 100), // Position for fourth "seat"
-    const Offset(300, 100), // Position for the new seat (fifth position)
-  ];
+    return baseDockWidth;
+  }
 
   @override
   void initState() {
     super.initState();
-    _items = [
-      Icons.access_alarm,
-      Icons.add_alert,
-      Icons.star,
-      Icons.home,
-      Icons.file_copy_sharp // New icon added
-    ];
-    _itemPositions = List.generate(_items.length, (index) => _dockPositions[index % _dockPositions.length]);
+    hoveredIndex = null;
+    baseItemHeight = 80;
+    verticalItemsPadding = 20;
+    baseTranslationY = 0.0;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 200,
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      child: Stack(
-        children: [
-          // Render the icons with animation
-          ...List.generate(
-            _items.length,
-            (index) {
-              return AnimatedPositioned(
-                duration: Duration(milliseconds: 300), // Set the duration of the animation
-                left: _itemPositions[index].dx,
-                top: _itemPositions[index].dy,
-                child: GestureDetector(
-                  onPanUpdate: (details) {
-                    setState(() {
-                      // Set dragging index only when it's null
-                      _draggingIndex ??= index;
-
-                      // Update position based on pan movement for dragging
-                      _draggingPosition = details.localPosition;
-                    });
-                  },
-                  onPanEnd: (_) {
-                    setState(() {
-                      if (_draggingPosition != null) {
-                        // Find the closest dock position for snapping
-                        final newIndex = _getClosestDockPosition(_draggingPosition!);
-
-                        // Rearrange the list of items based on the new position
-                        final movedItem = _items.removeAt(_draggingIndex!);
-                        _items.insert(newIndex, movedItem);
-
-                        // Rearrange the positions based on the new item order
-                        _itemPositions = List.generate(
-                          _items.length,
-                          (index) => _dockPositions[index % _dockPositions.length],
-                        );
-
-                        // Shift the icons
-                        _shiftIcons();
-
-                        // Reset dragging state
-                        _draggingPosition = null;
-                        _draggingIndex = null;
-                      }
-                    });
-                  },
-                  child: Container(
-                    height: 60,
-                    width: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.primaries[index % Colors.primaries.length],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Center(
-                      child: Icon(_items[index], color: Colors.white),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          // Render the icon being dragged (if exists)
-          if (_draggingPosition != null && _draggingIndex != null)
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
             Positioned(
-              left: _draggingPosition!.dx - 30, // Adjust to center the icon
-              top: _draggingPosition!.dy - 30,
-              child: Container(
-                height: 60,
-                width: 60,
+              height: baseItemHeight,
+              left: 0,
+              right: 0,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: Colors.primaries[_draggingIndex! % Colors.primaries.length],
                   borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Icon(_items[_draggingIndex!], color: Colors.white),
+                  gradient: const LinearGradient(
+                    colors: [Colors.blueAccent, Colors.greenAccent],
+                  ),
                 ),
               ),
             ),
-        ],
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: verticalItemsPadding),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: getDockWidth(),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(items.length, (index) {
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: DragTarget<String>(
+                          onAcceptWithDetails: (details) {
+                            setState(() {
+                              items.remove(draggedItem);
+                              items.insert(index, draggedItem!);
+                              draggedItem = null;
+                            });
+                          },
+                          builder: (context, candidateData, rejectedData) {
+                            return Opacity(
+                              opacity: candidateData.isNotEmpty ? 0.5 : 1.0,
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                onEnter: (event) {
+                                  if (draggedItem != null) {
+                                    setState(() {
+                                      hoveredIndex =
+                                          index; // Update hoveredIndex only when an item is being dragged
+                                    });
+                                  }
+                                },
+                                onExit: (event) {
+                                  // Keep hoveredIndex unchanged, so the last hovered index stays
+                                },
+                                child: Draggable<String>(
+                                  data: items[index],
+                                  onDragStarted: () {
+                                    setState(() {
+                                      draggedItem = items[index];
+                                    });
+                                  },
+                                  onDragUpdate: (details) {
+                                    setState(() {
+                                      final itemWidth =
+                                          MediaQuery.of(context).size.width /
+                                              items.length;
+                                      hoveredIndex =
+                                          (details.localPosition.dx /
+                                                  itemWidth)
+                                              .floor();
+                                    });
+                                  },
+                                  onDraggableCanceled: (velocity, offset) {
+                                    setState(() {
+                                      draggedItem = null;
+                                    });
+                                  },
+                                  childWhenDragging: SizedBox(
+                                    height: baseItemHeight,
+                                    width: baseItemHeight,
+                                  ),
+                                  feedback: Material(
+                                    color: Colors.transparent,
+                                    child: Container(
+                                      width: 80,
+                                      height: 80,
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        items[index],
+                                        style: const TextStyle(fontSize: 40),
+                                      ),
+                                    ),
+                                  ),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(seconds: 1),
+                                    transform: Matrix4.translationValues(
+                                      getIconPosition(index),
+                                      getTranslationY(index),
+                                      0,
+                                    ),
+                                    child: FittedBox(
+                                      fit: BoxFit.contain,
+                                      child: Text(
+                                        items[index],
+                                        style: const TextStyle(
+                                          fontSize: 40,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  // Function to find the closest dock position
-  int _getClosestDockPosition(Offset position) {
-    double minDistance = double.infinity;
-    int closestIndex = 0;
-
-    for (int i = 0; i < _dockPositions.length; i++) {
-      double distance = (position.dx - _dockPositions[i].dx).abs() +
-          (position.dy - _dockPositions[i].dy).abs();
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestIndex = i;
-      }
-    }
-
-    return closestIndex;
-  }
-
-  // Function to shift icons when a new item is inserted
-  void _shiftIcons() {
-    // Create a new list of positions based on the new order
-    final newPositions = List.generate(_items.length, (index) {
-      if (index < _draggingIndex!) {
-        return _dockPositions[index]; // Icons before the dragged one
-      } else if (index > _draggingIndex!) {
-        return _dockPositions[index - 1]; // Icons after the dragged one shift left
-      } else {
-        return _dockPositions[index]; // Keep the dragged icon at its new position
-      }
-    });
-
-    // Update the positions list
-    setState(() {
-      _itemPositions = newPositions;
-    });
-  }
 }
+
+
+/// List of items displayed in the dock as draggable icons.
+List<String> items = [
+  '📱', 
+  '💻', 
+  '💾', 
+  '🔋', 
+  '⚙️', 
+];
